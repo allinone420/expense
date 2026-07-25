@@ -28,15 +28,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm install
 
       - name: Build project
         run: npm run build
 
-      # Publish to gh-pages branch (for GitHub Pages set to branch)
+      # Primary Deployment: Publish to gh-pages branch
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -44,7 +43,7 @@ jobs:
           publish_dir: ./dist
           force_orphan: true
 
-      # Publish via GitHub Pages Actions (for GitHub Pages set to GitHub Actions)
+      # Secondary Deployment: GitHub Pages Actions workflow (if enabled in repo settings)
       - name: Setup Pages
         uses: actions/configure-pages@v5
         continue-on-error: true
@@ -59,3 +58,4 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
         continue-on-error: true
+
