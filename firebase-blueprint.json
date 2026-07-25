@@ -1,0 +1,27 @@
+{
+  "entities": {
+    "Expense": {
+      "collectionName": "expenses",
+      "parentPath": "users/{userId}",
+      "fields": {
+        "amount": { "type": "number", "required": true },
+        "date": { "type": "string", "required": true },
+        "categoryId": { "type": "string", "required": true },
+        "categoryName": { "type": "string", "required": true },
+        "categoryColor": { "type": "string", "required": true },
+        "note": { "type": "string", "required": false },
+        "createdAt": { "type": "string", "required": true }
+      }
+    },
+    "Category": {
+      "collectionName": "categories",
+      "parentPath": "users/{userId}",
+      "fields": {
+        "name": { "type": "string", "required": true },
+        "color": { "type": "string", "required": true },
+        "icon": { "type": "string", "required": false },
+        "isDefault": { "type": "boolean", "required": false }
+      }
+    }
+  }
+}
