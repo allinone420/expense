@@ -11,6 +11,9 @@ import {
   signInAnonymously, 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   signOut, 
   onAuthStateChanged,
   type User 
@@ -54,6 +57,9 @@ export {
   GoogleAuthProvider, 
   googleProvider, 
   signInWithPopup, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   signOut, 
   onAuthStateChanged,
   type User 

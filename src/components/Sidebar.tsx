@@ -7,7 +7,10 @@ import {
   FolderKanban, 
   Settings as SettingsIcon, 
   Plus,
-  AlertTriangle
+  AlertTriangle,
+  User as UserIcon,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -15,6 +18,9 @@ export const Sidebar: React.FC = () => {
     activeTab, 
     setActiveTab, 
     openAddExpenseModal, 
+    openAuthModal,
+    logout,
+    user,
     settings, 
     totalExpenseThisMonth, 
     isBudgetOverLimit,
@@ -99,6 +105,46 @@ export const Sidebar: React.FC = () => {
             <AlertTriangle className="w-4 h-4 shrink-0" />
             <span>Over budget limit!</span>
           </div>
+        )}
+      </div>
+
+      {/* User Account & Login / Logout in Sidebar */}
+      <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+        {user && !user.isAnonymous ? (
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/50">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              {user.photoURL ? (
+                <img src={user.photoURL} alt="User" className="w-8 h-8 rounded-full shrink-0 border" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs shrink-0">
+                  {user.displayName ? user.displayName.charAt(0).toUpperCase() : <UserIcon className="w-4 h-4" />}
+                </div>
+              )}
+              <div className="truncate">
+                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                  {user.displayName || 'Logged In User'}
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                  {user.email || 'Cloud Synced'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={logout}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-200/60 dark:hover:bg-slate-700 transition-colors"
+              title="Log Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={openAuthModal}
+            className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/60 text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-200 dark:border-slate-700 text-xs font-bold flex items-center justify-center gap-2 transition-all"
+          >
+            <LogIn className="w-4 h-4" />
+            <span>Log In / Create Account</span>
+          </button>
         )}
       </div>
 

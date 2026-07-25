@@ -15,6 +15,9 @@ import {
   onAuthStateChanged, 
   signInWithPopup, 
   googleProvider, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   signOut, 
   User 
 } from '../lib/firebase';
@@ -40,6 +43,7 @@ interface ExpenseContextType {
   activeTab: ActiveTab;
   timeViewMode: TimeViewMode;
   isAddExpenseModalOpen: boolean;
+  isAuthModalOpen: boolean;
   editingExpense: Expense | null;
   canInstallPWA: boolean;
   
@@ -50,6 +54,8 @@ interface ExpenseContextType {
   resetFilters: () => void;
   openAddExpenseModal: (expense?: Expense | null) => void;
   closeAddExpenseModal: () => void;
+  openAuthModal: () => void;
+  closeAuthModal: () => void;
   
   // Expense CRUD
   addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => Promise<void>;
@@ -67,6 +73,8 @@ interface ExpenseContextType {
   
   // Auth
   loginWithGoogle: () => Promise<void>;
+  loginWithEmail: (email: string, pass: string) => Promise<void>;
+  registerWithEmail: (email: string, pass: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   
   // PWA
@@ -104,10 +112,22 @@ const LOCAL_STORAGE_EXPENSES_KEY = 'pet_expenses_v1';
 const LOCAL_STORAGE_CATEGORIES_KEY = 'pet_categories_v1';
 const LOCAL_STORAGE_SETTINGS_KEY = 'pet_settings_v1';
 
+// Persistent device ID fallback when unauthenticated
+const getPersistentDeviceId = (): string => {
+  let devId = localStorage.getItem('pet_device_id');
+  if (!devId) {
+    devId = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+    localStorage.setItem('pet_device_id', devId);
+  }
+  return devId;
+};
+
 export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+
+  const currentUid = user ? user.uid : getPersistentDeviceId();
   
   const [expenses, setExpenses] = useState<Expense[]>(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_EXPENSES_KEY);
@@ -128,6 +148,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [timeViewMode, setTimeViewMode] = useState<TimeViewMode>('monthly');
   const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   
   // PWA Install state
@@ -167,7 +188,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [deferredInstallPrompt]);
 
-  // Auth Listener & Auto Anonymous Sign-In for single user experience
+  // Auth Listener & Auto Anonymous Sign-In
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
@@ -178,7 +199,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const anonResult = await signInAnonymously(auth);
           setUser(anonResult.user);
         } catch (err) {
-          console.warn('Anonymous auth failed or disabled, continuing in offline/local mode', err);
+          console.warn('Anonymous auth offline/disabled, using device ID fallback:', err);
         } finally {
           setIsAuthLoading(false);
         }
@@ -187,37 +208,47 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => unsubscribe();
   }, []);
 
-  // Sync Expenses from Firestore when authenticated
+  // Realtime Sync Expenses from Firestore
   useEffect(() => {
-    if (!user) return;
-    const expensesRef = collection(db, 'users', user.uid, 'expenses');
+    const expensesRef = collection(db, 'users', currentUid, 'expenses');
     const q = query(expensesRef, orderBy('date', 'desc'));
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const firestoreData: Expense[] = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        })) as Expense[];
-
-        if (firestoreData.length > 0 || snapshot.metadata.fromCache) {
+        if (!snapshot.empty) {
+          const firestoreData: Expense[] = snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          })) as Expense[];
           setExpenses(firestoreData);
           localStorage.setItem(LOCAL_STORAGE_EXPENSES_KEY, JSON.stringify(firestoreData));
+        } else {
+          // If Firestore is empty, push existing local expenses to Firestore
+          const saved = localStorage.getItem(LOCAL_STORAGE_EXPENSES_KEY);
+          if (saved) {
+            try {
+              const localExps: Expense[] = JSON.parse(saved);
+              localExps.forEach((exp) => {
+                setDoc(doc(db, 'users', currentUid, 'expenses', exp.id), exp).catch(() => {});
+              });
+            } catch (e) {
+              console.error('Failed to parse local expenses backup:', e);
+            }
+          }
         }
       },
       (error) => {
-        console.warn('Firestore expenses listener error (using local cache):', error);
+        console.warn('Firestore expenses listener error (using local state):', error);
       }
     );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [currentUid]);
 
-  // Sync Categories from Firestore when authenticated
+  // Realtime Sync Categories from Firestore
   useEffect(() => {
-    if (!user) return;
-    const categoriesRef = collection(db, 'users', user.uid, 'categories');
+    const categoriesRef = collection(db, 'users', currentUid, 'categories');
 
     const unsubscribe = onSnapshot(
       categoriesRef,
@@ -229,6 +260,11 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
           })) as Category[];
           setCategories(catData);
           localStorage.setItem(LOCAL_STORAGE_CATEGORIES_KEY, JSON.stringify(catData));
+        } else {
+          // Seed default categories into Firestore
+          DEFAULT_CATEGORIES.forEach((cat) => {
+            setDoc(doc(db, 'users', currentUid, 'categories', cat.id), cat).catch(() => {});
+          });
         }
       },
       (error) => {
@@ -237,7 +273,31 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [currentUid]);
+
+  // Realtime Sync Settings from Firestore
+  useEffect(() => {
+    const settingsRef = doc(db, 'users', currentUid, 'settings', 'config');
+
+    const unsubscribe = onSnapshot(
+      settingsRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const cloudSettings = snapshot.data() as UserSettings;
+          setSettings((prev) => ({ ...prev, ...cloudSettings }));
+          localStorage.setItem(LOCAL_STORAGE_SETTINGS_KEY, JSON.stringify({ ...DEFAULT_SETTINGS, ...cloudSettings }));
+        } else {
+          // Backup initial settings to Firestore
+          setDoc(settingsRef, settings).catch(() => {});
+        }
+      },
+      (error) => {
+        console.warn('Firestore settings listener error:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [currentUid]);
 
   // Save state to Local Storage
   useEffect(() => {
@@ -274,13 +334,11 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Optimistic UI update
     setExpenses((prev) => [newExpense, ...prev]);
 
-    // Firestore Sync
-    if (user) {
-      try {
-        await setDoc(doc(db, 'users', user.uid, 'expenses', newId), newExpense);
-      } catch (err) {
-        console.warn('Saved expense locally, offline sync pending:', err);
-      }
+    // Firestore Backup Sync
+    try {
+      await setDoc(doc(db, 'users', currentUid, 'expenses', newId), newExpense);
+    } catch (err) {
+      console.warn('Saved expense locally, Firestore backup pending:', err);
     }
   };
 
@@ -289,28 +347,24 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       prev.map((exp) => (exp.id === id ? { ...exp, ...updatedFields, updatedAt: new Date().toISOString() } : exp))
     );
 
-    if (user) {
-      try {
-        await setDoc(
-          doc(db, 'users', user.uid, 'expenses', id),
-          { ...updatedFields, updatedAt: new Date().toISOString() },
-          { merge: true }
-        );
-      } catch (err) {
-        console.warn('Updated expense locally, offline sync pending:', err);
-      }
+    try {
+      await setDoc(
+        doc(db, 'users', currentUid, 'expenses', id),
+        { ...updatedFields, updatedAt: new Date().toISOString() },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Updated expense locally, Firestore backup pending:', err);
     }
   };
 
   const deleteExpense = async (id: string) => {
     setExpenses((prev) => prev.filter((exp) => exp.id !== id));
 
-    if (user) {
-      try {
-        await deleteDoc(doc(db, 'users', user.uid, 'expenses', id));
-      } catch (err) {
-        console.warn('Deleted expense locally, offline sync pending:', err);
-      }
+    try {
+      await deleteDoc(doc(db, 'users', currentUid, 'expenses', id));
+    } catch (err) {
+      console.warn('Deleted expense locally, Firestore backup pending:', err);
     }
   };
 
@@ -324,12 +378,10 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setCategories((prev) => [...prev, newCategory]);
 
-    if (user) {
-      try {
-        await setDoc(doc(db, 'users', user.uid, 'categories', newId), newCategory);
-      } catch (err) {
-        console.warn('Saved category locally:', err);
-      }
+    try {
+      await setDoc(doc(db, 'users', currentUid, 'categories', newId), newCategory);
+    } catch (err) {
+      console.warn('Saved category locally, Firestore backup pending:', err);
     }
   };
 
@@ -338,7 +390,6 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       prev.map((cat) => (cat.id === id ? { ...cat, ...updatedFields } : cat))
     );
 
-    // Update matching category color/name in existing expenses too
     setExpenses((prev) =>
       prev.map((exp) => {
         if (exp.categoryId === id) {
@@ -353,57 +404,104 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
     );
 
-    if (user) {
-      try {
-        await setDoc(doc(db, 'users', user.uid, 'categories', id), updatedFields, { merge: true });
-      } catch (err) {
-        console.warn('Updated category locally:', err);
-      }
+    try {
+      await setDoc(doc(db, 'users', currentUid, 'categories', id), updatedFields, { merge: true });
+    } catch (err) {
+      console.warn('Updated category locally, Firestore backup pending:', err);
     }
   };
 
   const deleteCategory = async (id: string) => {
     setCategories((prev) => prev.filter((cat) => cat.id !== id));
 
-    if (user) {
-      try {
-        await deleteDoc(doc(db, 'users', user.uid, 'categories', id));
-      } catch (err) {
-        console.warn('Deleted category locally:', err);
-      }
+    try {
+      await deleteDoc(doc(db, 'users', currentUid, 'categories', id));
+    } catch (err) {
+      console.warn('Deleted category locally, Firestore backup pending:', err);
     }
   };
 
   // Settings & Theme
-  const updateSettings = (newSettings: Partial<UserSettings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
+  const updateSettings = async (newSettings: Partial<UserSettings>) => {
+    const updated = { ...settings, ...newSettings };
+    setSettings(updated);
+    try {
+      await setDoc(doc(db, 'users', currentUid, 'settings', 'config'), updated, { merge: true });
+    } catch (err) {
+      console.warn('Updated settings locally, Firestore backup pending:', err);
+    }
   };
 
   const toggleTheme = () => {
-    setSettings((prev) => ({ ...prev, theme: prev.theme === 'light' ? 'dark' : 'light' }));
+    const newTheme = settings.theme === 'light' ? 'dark' : 'light';
+    updateSettings({ theme: newTheme });
   };
+
+  // Helper to migrate anonymous device data to logged in user
+  const migrateDeviceDataToUser = useCallback((newUid: string) => {
+    const devId = localStorage.getItem('pet_device_id');
+    if (devId && devId !== newUid) {
+      expenses.forEach((exp) => {
+        setDoc(doc(db, 'users', newUid, 'expenses', exp.id), exp).catch(() => {});
+      });
+      categories.forEach((cat) => {
+        setDoc(doc(db, 'users', newUid, 'categories', cat.id), cat).catch(() => {});
+      });
+      setDoc(doc(db, 'users', newUid, 'settings', 'config'), settings).catch(() => {});
+    }
+  }, [expenses, categories, settings]);
 
   // Auth Methods
   const loginWithGoogle = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      migrateDeviceDataToUser(result.user.uid);
+      setIsAuthModalOpen(false);
     } catch (err) {
       console.error('Google Sign-In failed:', err);
-      alert('Google Login failed. Please check your network connection.');
+      throw err;
+    }
+  };
+
+  const loginWithEmail = async (email: string, pass: string) => {
+    try {
+      const result = await signInWithEmailAndPassword(auth, email, pass);
+      migrateDeviceDataToUser(result.user.uid);
+      setIsAuthModalOpen(false);
+    } catch (err: any) {
+      console.error('Email Login failed:', err);
+      throw err;
+    }
+  };
+
+  const registerWithEmail = async (email: string, pass: string, name: string) => {
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, pass);
+      if (name.trim()) {
+        await updateProfile(result.user, { displayName: name });
+      }
+      migrateDeviceDataToUser(result.user.uid);
+      setIsAuthModalOpen(false);
+    } catch (err: any) {
+      console.error('Email registration failed:', err);
+      throw err;
     }
   };
 
   const logout = async () => {
     try {
       await signOut(auth);
-      // Re-sign in anonymously for seamless single user continuation
       await signInAnonymously(auth);
+      setIsAuthModalOpen(false);
     } catch (err) {
       console.error('Logout error:', err);
     }
   };
 
   // Modal Handlers
+  const openAuthModal = () => setIsAuthModalOpen(true);
+  const closeAuthModal = () => setIsAuthModalOpen(false);
+
   const openAddExpenseModal = (expenseToEdit?: Expense | null) => {
     setEditingExpense(expenseToEdit || null);
     setIsAddExpenseModalOpen(true);
@@ -513,6 +611,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
         activeTab,
         timeViewMode,
         isAddExpenseModalOpen,
+        isAuthModalOpen,
         editingExpense,
         canInstallPWA,
         
@@ -522,6 +621,8 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
         resetFilters,
         openAddExpenseModal,
         closeAddExpenseModal,
+        openAuthModal,
+        closeAuthModal,
         
         addExpense,
         updateExpense,
@@ -535,6 +636,8 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
         toggleTheme,
         
         loginWithGoogle,
+        loginWithEmail,
+        registerWithEmail,
         logout,
         installPWA,
         

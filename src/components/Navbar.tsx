@@ -9,7 +9,9 @@ import {
   WifiOff, 
   Bell, 
   User as UserIcon,
-  Plus
+  Plus,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 import { requestNotificationPermission } from '../lib/notifications';
 
@@ -22,6 +24,8 @@ export const Navbar: React.FC = () => {
     installPWA, 
     user, 
     openAddExpenseModal,
+    openAuthModal,
+    logout,
     updateSettings
   } = useExpense();
 
@@ -113,18 +117,37 @@ export const Navbar: React.FC = () => {
             {settings.theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4 text-amber-400" />}
           </button>
 
-          {/* User Profile Avatar / Status */}
-          <div className="flex items-center gap-2 pl-1 border-l border-slate-200 dark:border-slate-800">
-            {user?.photoURL ? (
-              <img 
-                src={user.photoURL} 
-                alt="User" 
-                className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 object-cover"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-xs border border-slate-200 dark:border-slate-700">
-                {user?.isAnonymous ? 'A' : <UserIcon className="w-4 h-4" />}
+          {/* User Profile & Auth Button */}
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
+            {user && !user.isAnonymous ? (
+              <div className="flex items-center gap-2">
+                {user.photoURL ? (
+                  <img 
+                    src={user.photoURL} 
+                    alt="User" 
+                    className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 object-cover"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs border border-indigo-200 dark:border-indigo-800">
+                    {user.displayName ? user.displayName.charAt(0).toUpperCase() : <UserIcon className="w-4 h-4" />}
+                  </div>
+                )}
+                <button
+                  onClick={logout}
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
               </div>
+            ) : (
+              <button
+                onClick={openAuthModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-sm shadow-indigo-600/20"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Log In</span>
+              </button>
             )}
           </div>
 

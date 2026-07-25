@@ -23,6 +23,7 @@ export const Settings: React.FC = () => {
   const { 
     user, 
     loginWithGoogle, 
+    openAuthModal,
     logout, 
     settings, 
     updateSettings, 
@@ -144,18 +145,18 @@ export const Settings: React.FC = () => {
             </div>
           </div>
 
-          {user?.isAnonymous ? (
+          {user?.isAnonymous || !user ? (
             <button
-              onClick={loginWithGoogle}
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-2 shadow-sm"
+              onClick={openAuthModal}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-2 shadow-sm shadow-indigo-600/20"
             >
               <LogIn className="w-4 h-4" />
-              <span>Link Google Account</span>
+              <span>Log In / Create Account</span>
             </button>
           ) : (
             <button
               onClick={logout}
-              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold flex items-center gap-2"
+              className="px-4 py-2 rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950 text-xs font-bold flex items-center gap-2"
             >
               <LogOut className="w-4 h-4" />
               <span>Sign Out</span>

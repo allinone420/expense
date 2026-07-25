@@ -10,6 +10,7 @@ import { ExpenseList } from './components/ExpenseList';
 import { CategoryManager } from './components/CategoryManager';
 import { Settings } from './components/Settings';
 import { ExpenseModal } from './components/ExpenseModal';
+import { AuthModal } from './components/AuthModal';
 
 const AppContent: React.FC = () => {
   const { activeTab } = useExpense();
@@ -37,8 +38,9 @@ const AppContent: React.FC = () => {
       {/* Mobile Bottom Navigation */}
       <BottomNav />
 
-      {/* Global Add/Edit Expense Modal */}
+      {/* Global Add/Edit Expense Modal & Auth Modal */}
       <ExpenseModal />
+      <AuthModal />
     </div>
   );
 };
