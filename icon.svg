@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="128" fill="#4f46e5"/>
+  <circle cx="256" cy="256" r="180" fill="#ffffff" opacity="0.1"/>
+  <!-- Wallet / Credit Card Icon -->
+  <rect x="112" y="160" width="288" height="200" rx="24" fill="#ffffff"/>
+  <path d="M112 210h288" stroke="#4f46e5" stroke-width="16"/>
+  <circle cx="330" cy="285" r="20" fill="#4f46e5"/>
+  <path d="M220 310l36-36 36 36" stroke="#10b981" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
