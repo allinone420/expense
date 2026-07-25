@@ -1,17 +1,18 @@
-const CACHE_NAME = 'expense-tracker-v1';
+const CACHE_NAME = 'expense-tracker-v2';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  './',
+  './index.html',
+  './manifest.json',
+  './icon.svg'
 ];
 
 // Install Event
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      return Promise.allSettled(
+        ASSETS_TO_CACHE.map((url) => cache.add(url).catch(() => {}))
+      );
     }).then(() => self.skipWaiting())
   );
 });
@@ -56,7 +57,7 @@ self.addEventListener('fetch', (event) => {
             return cachedResponse;
           }
           if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
+            return caches.match('./index.html') || caches.match('./');
           }
         });
       })
@@ -78,7 +79,7 @@ self.addEventListener('notificationclick', (event) => {
         }
         return client.focus();
       }
-      return clients.openWindow('/');
+      return clients.openWindow('./');
     })
   );
 });
@@ -89,12 +90,12 @@ self.addEventListener('message', (event) => {
     const { title, body, icon } = event.data;
     self.registration.showNotification(title, {
       body: body || 'আজকের খরচ যোগ করেছো?',
-      icon: icon || '/icon-192.png',
-      badge: '/icon-192.png',
+      icon: icon || './icon.svg',
+      badge: './icon.svg',
       vibrate: [200, 100, 200],
       tag: 'daily-expense-reminder',
       renotify: true,
-      data: { url: '/' }
+      data: { url: './' }
     });
   }
 });
